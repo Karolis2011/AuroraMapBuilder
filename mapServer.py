@@ -13,6 +13,8 @@ import wget
 
 import urllib.request
 
+build_locks = {}
+
 def get_dmmtools():
     if os.name == 'nt':
         if not os.path.isfile("dmm-tools.exe"):
@@ -31,8 +33,11 @@ def verify_hmac_hash(data, signature):
     mac = hmac.new(github_secret, msg=data, digestmod=hashlib.sha1)
     return hmac.compare_digest('sha1=' + mac.hexdigest(), signature)
 
-@app.route('/')
-def hello_world():
+@app.route('/<string:secret>')
+def ping(secret):
+    trueSecret = os.getenv('GITHUB_SECRET')
+    if trueSecret and secret != trueSecret:
+        return 'Invalid SECRET'
     path = os.path.join(os.getcwd(), "__cache", "Aurorastation/Aurora.3")
     th = threading.Thread(target=handle_generation, args=(path, "https://github.com/Aurorastation/Aurora.3.git"))
     th.start()
@@ -51,26 +56,29 @@ def github_payload():
             return 'OK'
 
 def handle_generation(path, remote, ref = None):
-    print("Started build task for {}.".format(remote))
-    repo = None
-    if not os.path.isdir(path):
-        repo = Repo.clone_from(remote, path)
-    else:
-        repo = Repo(path)
-        for remote in repo.remotes:
-            remote.fetch()
-        if ref:
-            repo.git.checkout(ref)
+    if not path in build_locks:
+        build_locks[path] = threading.Lock()
+    with build_locks[path]:
+        print("Started build task for {}.".format(remote))
+        repo = None
+        if not os.path.isdir(path):
+            repo = Repo.clone_from(remote, path)
         else:
-            repo.remotes.origin.pull()
+            repo = Repo(path)
+            for remote in repo.remotes:
+                remote.fetch()
+            if ref:
+                repo.git.checkout(ref)
+            else:
+                repo.remotes.origin.pull()
 
-    maps = glob.glob(os.path.join(repo.working_tree_dir, "maps", "**", "*.dmm"))
-    args = [os.path.abspath(get_dmmtools()), "minimap", "--disable", "icon-smoothing,fancy-layers"]
-    for m in maps:
-        a = []
-        a.extend(args)
-        a.append(m)
-        subprocess.run(a, cwd=repo.working_tree_dir)
+        maps = glob.glob(os.path.join(repo.working_tree_dir, "maps", "**", "*.dmm"))
+        args = [os.path.abspath(get_dmmtools()), "minimap", "--disable", "icon-smoothing,fancy-layers"]
+        for m in maps:
+            a = []
+            a.extend(args)
+            a.append(m)
+            subprocess.run(a, cwd=repo.working_tree_dir)
 
 @app.route('/mapfile/<string:a>/<string:b>/<string:c>')
 def send_mapfile(a, b, c):
