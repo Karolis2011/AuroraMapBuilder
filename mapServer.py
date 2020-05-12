@@ -59,8 +59,10 @@ def github_payload():
                     if f["filename"].startswith("maps/"):
                         th = threading.Thread(target=handle_generation, args=(payload["repository"]["full_name"], payload["repository"]["clone_url"], "master"))
                         th.start()
-                        break
-                return 'OK'
+                        return 'OK'
+                return 'Build not started.'
+            else:
+                return 'unbuildable branch'
 
 def handle_generation(fullname, remote, branch = None):
     path = os.path.join(os.getcwd(), "__cache", fullname)
@@ -104,10 +106,10 @@ def handle_generation(fullname, remote, branch = None):
             os.rename(image, newPh)
         print("All done.")
 
-# @app.route('/mapfile/<string:a>/<string:b>/<string:c>')
-# def send_mapfile(a, b, c):
-#     path = os.path.join(os.path.dirname(__file__), "__cache", a, b, "data", "minimaps")
-#     return send_from_directory(path, c)
+# @app.route('/mapfile/<path:a>')
+# def send_mapfile(a):
+#     path = os.path.join(os.path.dirname(__file__), "mapImages",)
+#     return send_from_directory(path, a)
 
 if __name__ == "__main__":
     print("Current secret is {}, use it while setting up webhook.".format(os.getenv('GITHUB_SECRET')))
